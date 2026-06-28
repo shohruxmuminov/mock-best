@@ -1,8 +1,8 @@
 import express from 'express';
-import { del } from '@vercel/blob';
 import { query, one } from '../db.js';
-import config from '../config.js';
 import { requireAdmin } from '../auth.js';
+import { upload } from '../upload.js';
+import { storeFile } from './files.js';
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -20,22 +20,29 @@ function serialize(t) {
   };
 }
 
-// Files are uploaded directly to Vercel Blob from the browser; here we just
-// persist their URLs. Listening audio is optional.
-router.post('/', async (req, res, next) => {
+const uploadFields = upload.fields([
+  { name: 'listeningHtml', maxCount: 1 },
+  { name: 'listeningAudio', maxCount: 1 },
+  { name: 'readingHtml', maxCount: 1 },
+  { name: 'writingHtml', maxCount: 1 },
+]);
+
+// Create a mock test. Listening audio is OPTIONAL; files are stored in Postgres.
+router.post('/', uploadFields, async (req, res, next) => {
   try {
+    const files = req.files || {};
     const title = (req.body?.title || '').toString().trim();
     const testName = (req.body?.testName || '').toString().trim();
     if (!title || !testName) return res.status(400).json({ error: 'Title and Test Name are required.' });
 
-    const listeningHtml = req.body?.listeningHtml || null;
-    const listeningAudio = req.body?.listeningAudio || null; // optional
-    const readingHtml = req.body?.readingHtml || null;
-    const writingHtml = req.body?.writingHtml || null;
-
-    if (!listeningHtml && !readingHtml && !writingHtml) {
+    if (!files.listeningHtml && !files.readingHtml && !files.writingHtml) {
       return res.status(400).json({ error: 'Upload at least one section HTML file (Listening, Reading or Writing).' });
     }
+
+    const listeningHtml = await storeFile(files.listeningHtml?.[0]);
+    const listeningAudio = await storeFile(files.listeningAudio?.[0]); // optional
+    const readingHtml = await storeFile(files.readingHtml?.[0]);
+    const writingHtml = await storeFile(files.writingHtml?.[0]);
 
     const maxRow = await one('SELECT COALESCE(MAX(order_index), 0) AS m FROM mock_tests');
     const order = (maxRow?.m || 0) + 1;
@@ -63,15 +70,8 @@ router.get('/', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const test = await one('SELECT * FROM mock_tests WHERE id = $1', [Number(req.params.id)]);
-    if (!test) return res.status(404).json({ error: 'Mock test not found.' });
-
-    // Best-effort removal of the uploaded blobs.
-    const urls = [test.listening_html, test.listening_audio, test.reading_html, test.writing_html].filter(Boolean);
-    if (config.blobToken && urls.length) {
-      del(urls, { token: config.blobToken }).catch(() => {});
-    }
-    await query('DELETE FROM mock_tests WHERE id = $1', [test.id]);
+    const rows = await query('DELETE FROM mock_tests WHERE id = $1 RETURNING id', [Number(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: 'Mock test not found.' });
     res.json({ ok: true });
   } catch (err) {
     next(err);

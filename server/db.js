@@ -4,29 +4,34 @@ import config from './config.js';
 const { Pool } = pg;
 
 if (!config.databaseUrl) {
-  console.warn('[db] DATABASE_URL is not set — database queries will fail until it is configured.');
+  console.warn('[db] DATABASE_URL is not set — database features will be unavailable until it is configured.');
 }
 
-// Neon (and most managed Postgres) require SSL; local Postgres does not.
 const isLocal = /localhost|127\.0\.0\.1/.test(config.databaseUrl);
 
 const pool = new Pool({
-  connectionString: config.databaseUrl,
+  connectionString: config.databaseUrl || undefined,
   ssl: isLocal ? false : { rejectUnauthorized: false },
   max: 5,
+  connectionTimeoutMillis: 12000,
+  idleTimeoutMillis: 10000,
 });
 
-export async function query(text, params) {
-  const res = await pool.query(text, params);
-  return res.rows;
-}
-
-export async function one(text, params) {
-  const rows = await query(text, params);
-  return rows[0] || null;
-}
+// CRITICAL on serverless: without this listener an idle-client error (which
+// happens routinely when the platform drops a connection) becomes an uncaught
+// exception that crashes the whole function (FUNCTION_INVOCATION_FAILED).
+pool.on('error', (err) => {
+  console.error('[pg pool error]', err.message);
+});
 
 const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS files (
+    id          SERIAL PRIMARY KEY,
+    mime        TEXT,
+    name        TEXT,
+    data        BYTEA NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
   `CREATE TABLE IF NOT EXISTS candidates (
     id          SERIAL PRIMARY KEY,
     full_name   TEXT NOT NULL,
@@ -86,23 +91,36 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_candidates_code ON candidates(code)`,
   `CREATE INDEX IF NOT EXISTS idx_mock_tests_order ON mock_tests(order_index, id)`,
-  `CREATE INDEX IF NOT EXISTS idx_events_recent ON monitoring_events(created_at DESC)`,
 ];
 
-// Ensure the schema exists. Cached so it runs once per warm serverless instance.
+// Ensure the schema exists. Cached so it runs once per warm instance.
 let schemaPromise = null;
 export function ensureSchema() {
+  if (!config.databaseUrl) {
+    return Promise.reject(new Error('Database is not configured (DATABASE_URL missing).'));
+  }
   if (!schemaPromise) {
     schemaPromise = (async () => {
-      for (const stmt of SCHEMA) {
-        await pool.query(stmt);
-      }
+      for (const stmt of SCHEMA) await pool.query(stmt);
     })().catch((err) => {
       schemaPromise = null; // allow retry on a later request
       throw err;
     });
   }
   return schemaPromise;
+}
+
+// All data access goes through here; the schema is ensured lazily so that
+// DB-free routes (admin code login, health, config) never touch the database.
+export async function query(text, params) {
+  await ensureSchema();
+  const res = await pool.query(text, params);
+  return res.rows;
+}
+
+export async function one(text, params) {
+  const rows = await query(text, params);
+  return rows[0] || null;
 }
 
 export default pool;

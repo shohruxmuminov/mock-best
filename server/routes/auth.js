@@ -10,6 +10,7 @@ router.get('/config', (req, res) => {
     googleClientId: config.googleClientId || null,
     googleEnabled: Boolean(config.googleClientId),
     passwordEnabled: Boolean(config.adminPassword),
+    codeEnabled: Boolean(config.adminCode),
     adminEmail: config.adminEmail,
   });
 });
@@ -32,6 +33,17 @@ router.post('/admin/password', (req, res) => {
   if (!config.adminPassword) return res.status(404).json({ error: 'Password login is disabled.' });
   if (!password || password !== config.adminPassword) {
     return res.status(401).json({ error: 'Incorrect admin password.' });
+  }
+  const token = signToken({ role: 'admin', email: config.adminEmail });
+  res.json({ token, admin: { email: config.adminEmail, name: 'Administrator' } });
+});
+
+// Admin login via a simple access code (default 2010).
+router.post('/admin/code', (req, res) => {
+  const code = (req.body?.code ?? '').toString().trim();
+  if (!config.adminCode) return res.status(404).json({ error: 'Code login is disabled.' });
+  if (!code || code !== config.adminCode) {
+    return res.status(401).json({ error: 'Incorrect admin code.' });
   }
   const token = signToken({ role: 'admin', email: config.adminEmail });
   res.json({ token, admin: { email: config.adminEmail, name: 'Administrator' } });

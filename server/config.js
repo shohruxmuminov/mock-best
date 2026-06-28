@@ -15,9 +15,6 @@ export const config = {
   // Postgres (Neon on Vercel, local Postgres in development).
   databaseUrl: process.env.DATABASE_URL || process.env.POSTGRES_URL || '',
 
-  // Vercel Blob storage token (set automatically when a Blob store is linked).
-  blobToken: process.env.BLOB_READ_WRITE_TOKEN || '',
-
   // Auth
   jwtSecret:
     process.env.JWT_SECRET ||
@@ -30,7 +27,7 @@ export const config = {
   // Simple admin access code for the Admin Panel (default 2010).
   adminCode: (process.env.ADMIN_CODE || '2010').toString(),
 
-  // Max upload size (client-side direct-to-Blob; default 200 MB).
+  // Max upload size (default 200 MB; note Vercel caps request body at ~4.5 MB).
   maxUploadBytes: parseInt(process.env.MAX_UPLOAD_BYTES || '209715200', 10),
 
   // Paths

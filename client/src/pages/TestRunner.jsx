@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { examState } from '../lib/examState.js';
-import { uploadToBlob } from '../lib/blob.js';
 import HtmlFrame from '../components/HtmlFrame.jsx';
 import AnswerSheet from '../components/AnswerSheet.jsx';
 
@@ -166,12 +165,10 @@ export default function TestRunner() {
     setBusy(true);
     setUploadMsg('');
     try {
-      const fileUrl = await uploadToBlob(essayFile, 'writing/');
-      await api.post('/submissions/writing', {
-        mockTestId: test.id,
-        fileUrl,
-        originalName: essayFile.name,
-      });
+      const form = new FormData();
+      form.append('pdf', essayFile);
+      form.append('mockTestId', String(test.id));
+      await api.postForm('/submissions/writing', form);
       finish();
     } catch (e) {
       setUploadMsg(e.message);

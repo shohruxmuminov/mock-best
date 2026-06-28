@@ -11,7 +11,7 @@ app.listen(config.port, () => {
   console.log(`IELTS Mock Test Platform listening on http://localhost:${config.port}`);
   console.log(`  Admin email      : ${config.adminEmail}`);
   console.log(`  Database         : ${config.databaseUrl ? 'configured' : 'MISSING (set DATABASE_URL)'}`);
-  console.log(`  Blob storage     : ${config.blobToken ? 'configured' : 'MISSING (set BLOB_READ_WRITE_TOKEN)'}`);
+  console.log(`  Admin code       : ${config.adminCode ? 'enabled' : 'disabled'}`);
   console.log(`  Google login     : ${config.googleClientId ? 'enabled' : 'disabled'}`);
   console.log(`  Password fallback: ${config.adminPassword ? 'enabled' : 'disabled'}`);
 });

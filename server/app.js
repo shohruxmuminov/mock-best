@@ -4,7 +4,6 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import config from './config.js';
-import { ensureSchema } from './db.js';
 
 import authRoutes from './routes/auth.js';
 import adminCandidates from './routes/adminCandidates.js';
@@ -13,7 +12,7 @@ import adminReview from './routes/adminReview.js';
 import mockTests from './routes/mockTests.js';
 import submissions from './routes/submissions.js';
 import monitor from './routes/monitor.js';
-import blob from './routes/blob.js';
+import files from './routes/files.js';
 
 export function createApp() {
   const app = express();
@@ -27,16 +26,8 @@ export function createApp() {
   // Health check does not require the database.
   app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
-  // Ensure the schema exists before any data route runs (cached per instance).
-  app.use('/api', async (req, res, next) => {
-    try {
-      await ensureSchema();
-      next();
-    } catch (err) {
-      next(err);
-    }
-  });
-
+  // Data routes ensure the schema lazily (via db.query), so DB-free routes such
+  // as admin code login work even before a database is configured.
   app.use('/api/auth', authRoutes);
   app.use('/api/admin/candidates', adminCandidates);
   app.use('/api/admin/mock-tests', adminMockTests);
@@ -44,7 +35,7 @@ export function createApp() {
   app.use('/api/mock-tests', mockTests);
   app.use('/api/submissions', submissions);
   app.use('/api/monitor', monitor);
-  app.use('/api/blob', blob);
+  app.use('/api/files', files);
 
   // Error handler.
   app.use((err, req, res, next) => {

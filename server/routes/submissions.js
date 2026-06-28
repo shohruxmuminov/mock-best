@@ -1,12 +1,13 @@
 import express from 'express';
 import { query, one } from '../db.js';
 import { requireCandidate } from '../auth.js';
+import { upload } from '../upload.js';
+import { storeFile } from './files.js';
 
 const router = express.Router();
-router.use(requireCandidate);
 
 // Save a Listening or Reading answer sheet (40 answers).
-router.post('/answer-sheet', async (req, res, next) => {
+router.post('/answer-sheet', requireCandidate, async (req, res, next) => {
   try {
     const { mockTestId, section } = req.body || {};
     let { answers } = req.body || {};
@@ -33,20 +34,19 @@ router.post('/answer-sheet', async (req, res, next) => {
   }
 });
 
-// Record the uploaded Writing essay PDF (uploaded to Blob from the browser).
-router.post('/writing', async (req, res, next) => {
+// Upload the Writing essay PDF (stored in Postgres).
+router.post('/writing', requireCandidate, upload.single('pdf'), async (req, res, next) => {
   try {
     const testId = Number(req.body?.mockTestId);
-    const fileUrl = (req.body?.fileUrl || '').toString();
-    const originalName = (req.body?.originalName || 'essay.pdf').toString();
-    if (!fileUrl) return res.status(400).json({ error: 'No uploaded file URL received.' });
+    if (!req.file) return res.status(400).json({ error: 'No PDF file received.' });
     if (!testId || !(await one('SELECT 1 FROM mock_tests WHERE id = $1', [testId]))) {
       return res.status(400).json({ error: 'Invalid mock test.' });
     }
+    const fileUrl = await storeFile(req.file);
     await query(
       `INSERT INTO writing_uploads (candidate_id, mock_test_id, file_url, original_name)
        VALUES ($1, $2, $3, $4)`,
-      [req.candidate.id, testId, fileUrl, originalName]
+      [req.candidate.id, testId, fileUrl, req.file.originalname || 'essay.pdf']
     );
     res.status(201).json({ ok: true, file: fileUrl });
   } catch (err) {

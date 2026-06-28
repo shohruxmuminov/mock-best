@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api.js';
-import { uploadToBlob } from '../../lib/blob.js';
 
 function FileField({ label, hint, accept, file, onPick, required }) {
   const ref = useRef(null);
@@ -63,13 +62,15 @@ export default function MockTestsTab() {
     }
     setSubmitting(true);
     try {
-      setMsg({ type: 'ok', text: 'Uploading files… please wait.' });
-      const payload = { title, testName };
-      if (listeningHtml) payload.listeningHtml = await uploadToBlob(listeningHtml, 'listening/');
-      if (listeningAudio) payload.listeningAudio = await uploadToBlob(listeningAudio, 'audio/');
-      if (readingHtml) payload.readingHtml = await uploadToBlob(readingHtml, 'reading/');
-      if (writingHtml) payload.writingHtml = await uploadToBlob(writingHtml, 'writing/');
-      await api.post('/admin/mock-tests', payload);
+      setMsg({ type: 'ok', text: 'Uploading… please wait.' });
+      const form = new FormData();
+      form.append('title', title);
+      form.append('testName', testName);
+      if (listeningHtml) form.append('listeningHtml', listeningHtml);
+      if (listeningAudio) form.append('listeningAudio', listeningAudio);
+      if (readingHtml) form.append('readingHtml', readingHtml);
+      if (writingHtml) form.append('writingHtml', writingHtml);
+      await api.postForm('/admin/mock-tests', form);
       setMsg({ type: 'ok', text: 'Mock test uploaded successfully.' });
       reset();
       load();
