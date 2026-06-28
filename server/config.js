@@ -27,6 +27,8 @@ export const config = {
     .toLowerCase(),
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  // Simple admin access code for the Admin Panel (default 2010).
+  adminCode: (process.env.ADMIN_CODE || '2010').toString(),
 
   // Max upload size (client-side direct-to-Blob; default 200 MB).
   maxUploadBytes: parseInt(process.env.MAX_UPLOAD_BYTES || '209715200', 10),
